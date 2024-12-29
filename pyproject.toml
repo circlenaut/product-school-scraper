@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "product-school-scraper"
+version = "0.1.0"
+description = ""
+authors = ["Felipe Strefling <felipe@lux18.xyz>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32.3"
+fire = "^0.7.0"
+beautifulsoup4 = "^4.12.3"
+pdfkit = "^1.0.0"
+colorlog = "^6.9.0"
+pytest = "^8.3.4"
+pytest-mock = "^3.14.0"
+pypdf = "^5.1.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest-cov = "^6.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+product-school-scraper = "product_school_scraper.main:main"
