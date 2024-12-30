@@ -48,10 +48,12 @@ This command-line tool is designed to scrape data from [Product School](https://
    git clone https://github.com/your-organization/product-school-scraper.git
    cd product-school-scraper
    ```
+
 2. Install dependencies via Poetry:
    ```bash
    poetry install
    ```
+
 3. (Optional) Activate your virtual environment:
    ```bash
    poetry shell
@@ -241,10 +243,70 @@ TOTAL                                                       369      0    100%
 
 ---
 
+## Linting
+
+The project uses Ruff for linting and code formatting, providing fast and comprehensive Python code quality checks.
+
+### Setup
+
+Ruff is included in the development dependencies. If you haven't installed dev dependencies yet:
+```bash
+poetry install
+```
+
+### Running Linting Checks
+
+Check your code for style issues:
+```bash
+poetry run ruff check .
+```
+
+Auto-fix issues that can be fixed automatically:
+```bash
+poetry run ruff check --fix .
+```
+
+### Code Formatting
+
+Format your code according to the project's style rules:
+```bash
+poetry run ruff format .
+```
+
+### Configuration
+
+The project's Ruff configuration is defined in `pyproject.toml`. Key features include:
+
+- Line length set to 88 characters (same as Black)
+- Python 3.12+ compatibility checks
+- Comprehensive rule set with pragmatic exceptions
+- Special rules for test files
+- Integration with common Python coding standards
+
+### Pre-commit Integration
+
+For automatic linting before commits, add this to your `.pre-commit-config.yaml`:
+```yaml
+repos:
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.4
+    hooks:
+    -   id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+    -   id: ruff-format
+```
+
+Then install pre-commit hooks:
+```bash
+pre-commit install
+```
+
+---
+
 ## Troubleshooting
 
 1. **wkhtmltopdf Not Found**  
-   Ensure `wkhtmltopdf` is installed and on your system’s PATH.
+   Ensure `wkhtmltopdf` is installed and on your system's PATH.
 
 2. **Rate Limiting**  
    The default rate limit is 1 request every 10 seconds. Change `RATE_LIMIT_SECONDS` in `scraping_service.py` if needed.
@@ -263,7 +325,7 @@ TOTAL                                                       369      0    100%
 
 1. Fork the repository or create a new branch.
 2. Make your changes.
-3. Open a Pull Request. We’ll review and merge as soon as possible.
+3. Open a Pull Request. We'll review and merge as soon as possible.
 
 ---
 

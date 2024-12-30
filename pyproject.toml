@@ -19,6 +19,7 @@ pypdf = "^5.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest-cov = "^6.0.0"
+ruff = "^0.8.4"
 
 [build-system]
 requires = ["poetry-core"]
@@ -26,3 +27,51 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 product-school-scraper = "product_school_scraper.main:main"
+
+[tool.ruff]
+# Line length and indentation
+line-length = 88
+indent-width = 4
+
+# Python target version
+target-version = "py312"
+
+# Files to exclude
+exclude = [
+    ".git",
+    ".ruff_cache",
+    "__pycache__",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Enable all rules by default, except the ones that conflict with formatter
+select = ["ALL"]
+ignore = [
+    "D",        # Ignore docstring rules (optional)
+    "ANN",      # Ignore type annotation rules (optional)
+    "ERA",      # Ignore eradicate rules (commented-out code)
+    "COM812",   # Trailing comma missing
+    "ISC001",   # Single line implicit string concatenation
+]
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = [
+    "S101",    # Allow assert in tests
+    "PLR2004", # Allow magic numbers in tests
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

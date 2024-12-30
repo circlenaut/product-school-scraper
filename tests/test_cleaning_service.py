@@ -1,12 +1,11 @@
-import pytest
-
 from bs4 import BeautifulSoup
 
 from product_school_scraper.services.cleaning_service import (
-    remove_boilerplate_phrases,
+    clean_html_content,
     fix_missing_space_after_period,
-    clean_html_content
+    remove_boilerplate_phrases,
 )
+
 
 def test_remove_boilerplate_phrases_middle():
     """
@@ -14,11 +13,12 @@ def test_remove_boilerplate_phrases_middle():
     """
     text = "This is a test. Subscribe to The Product Blog. Another sentence."
     cleaned = remove_boilerplate_phrases(text)
-    
+
     # After removal, expect single space replacing the phrase and punctuation
     expected = "This is a test. Another sentence."
     assert "Subscribe to The Product Blog" not in cleaned
     assert cleaned == expected
+
 
 def test_remove_boilerplate_phrases_start():
     """
@@ -26,11 +26,12 @@ def test_remove_boilerplate_phrases_start():
     """
     text = "Subscribe to The Product Blog. This is a test. Another sentence."
     cleaned = remove_boilerplate_phrases(text)
-    
+
     # After removal, expect the phrase and following punctuation to be removed
     expected = "This is a test. Another sentence."
     assert "Subscribe to The Product Blog" not in cleaned
     assert cleaned == expected
+
 
 def test_remove_boilerplate_phrases_end():
     """
@@ -38,24 +39,28 @@ def test_remove_boilerplate_phrases_end():
     """
     text = "This is a test. Another sentence. Subscribe to The Product Blog."
     cleaned = remove_boilerplate_phrases(text)
-    
+
     # After removal, expect the phrase and preceding punctuation to be removed
     expected = "This is a test. Another sentence."
     assert "Subscribe to The Product Blog" not in cleaned
     assert cleaned == expected
 
+
 def test_remove_boilerplate_phrases_multiple_occurrences():
     """
     Test removing multiple occurrences of a boilerplate phrase in the text.
     """
-    text = ("Subscribe to The Product Blog. This is a test. "
-            "Subscribe to The Product Blog. Another sentence.")
+    text = (
+        "Subscribe to The Product Blog. This is a test. "
+        "Subscribe to The Product Blog. Another sentence."
+    )
     cleaned = remove_boilerplate_phrases(text)
-    
+
     # After removal, expect both phrases and their punctuation to be removed
     expected = "This is a test. Another sentence."
     assert "Subscribe to The Product Blog" not in cleaned
     assert cleaned == expected
+
 
 def test_remove_boilerplate_phrases_case_insensitive():
     """
@@ -63,11 +68,12 @@ def test_remove_boilerplate_phrases_case_insensitive():
     """
     text = "This is a test. subscribe to the product blog. Another sentence."
     cleaned = remove_boilerplate_phrases(text)
-    
+
     # Since the function is case-insensitive, the phrase should be removed
     expected = "This is a test. Another sentence."
     assert "subscribe to the product blog" not in cleaned
     assert cleaned == expected
+
 
 def test_remove_boilerplate_phrases_with_punctuation():
     """
@@ -75,11 +81,12 @@ def test_remove_boilerplate_phrases_with_punctuation():
     """
     text = "This is a test! Subscribe to The Product Blog? Another sentence."
     cleaned = remove_boilerplate_phrases(text)
-    
+
     # After removal, expect the phrase and its punctuation to be removed
     expected = "This is a test! Another sentence."
     assert "Subscribe to The Product Blog" not in cleaned
     assert cleaned == expected
+
 
 def test_fix_missing_space_after_period():
     """
@@ -90,6 +97,7 @@ def test_fix_missing_space_after_period():
     expected = "This is a sentence. Another sentence without space."
     assert fixed == expected
 
+
 def test_fix_missing_space_after_period_already_correct():
     """
     Test that text with correct spacing remains unchanged.
@@ -98,6 +106,7 @@ def test_fix_missing_space_after_period_already_correct():
     fixed = fix_missing_space_after_period(text)
     expected = "This is a sentence. Another sentence with space."
     assert fixed == expected
+
 
 def test_clean_html_content():
     """
@@ -115,13 +124,14 @@ def test_clean_html_content():
         </body>
     </html>
     """
-    soup = BeautifulSoup(html_content, 'html.parser')
+    soup = BeautifulSoup(html_content, "html.parser")
     cleaned = clean_html_content("Test Page", soup)
-    
+
     # After removal, expect the phrase and its punctuation to be removed
     expected = "This is a test. Another sentence."
     assert "Subscribe to The Product Blog" not in cleaned
     assert cleaned == expected
+
 
 def test_clean_html_content_with_missing_main():
     """
@@ -139,15 +149,16 @@ def test_clean_html_content_with_missing_main():
         </body>
     </html>
     """
-    soup = BeautifulSoup(html_content, 'html.parser')
+    soup = BeautifulSoup(html_content, "html.parser")
     cleaned = clean_html_content("Test Page", soup)
-    
+
     # After removal, expect the phrase and its punctuation to be removed
     # Including the page title since <main> is missing and <head> is not excluded
     expected = "Test Page This is a test. Another sentence."
     assert "Subscribe to The Product Blog" not in cleaned
     assert cleaned == expected
 
+
 def test_clean_html_content_empty():
     """
     Test cleaning HTML content that has no main content.
@@ -162,7 +173,7 @@ def test_clean_html_content_empty():
         </body>
     </html>
     """
-    soup = BeautifulSoup(html_content, 'html.parser')
+    soup = BeautifulSoup(html_content, "html.parser")
     cleaned = clean_html_content("Empty Page", soup)
     expected = ""
     assert cleaned == expected
@@ -182,10 +193,11 @@ def test_clean_html_content_empty():
         </body>
     </html>
     """
-    soup = BeautifulSoup(html_content, 'html.parser')
+    soup = BeautifulSoup(html_content, "html.parser")
     cleaned = clean_html_content("Empty Page", soup)
     expected = ""
     assert cleaned == expected
+
 
 def test_clean_html_content_exception(mocker):
     """
@@ -193,18 +205,22 @@ def test_clean_html_content_exception(mocker):
     """
     # Create a mock BeautifulSoup object
     mock_soup = mocker.Mock(spec=BeautifulSoup)
-    
+
     # Configure the mock to raise an exception when find_all is called
     mock_soup.find_all.side_effect = Exception("Test exception")
-    
+
     # Patch the logger's error method
-    mock_logger_error = mocker.patch('product_school_scraper.services.cleaning_service.logger.error')
-    
+    mock_logger_error = mocker.patch(
+        "product_school_scraper.services.cleaning_service.logger.error"
+    )
+
     # Call the function with the mocked soup
     cleaned = clean_html_content("Test Page", mock_soup)
-    
+
     # Assert that the function returns an empty string
     assert cleaned == ""
-    
+
     # Assert that logger.error was called with the correct message
-    mock_logger_error.assert_called_once_with("Error cleaning page 'Test Page': Test exception")
+    mock_logger_error.assert_called_once_with(
+        "Error cleaning page 'Test Page': Test exception"
+    )

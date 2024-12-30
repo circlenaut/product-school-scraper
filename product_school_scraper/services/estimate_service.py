@@ -1,16 +1,15 @@
-from typing import List, Optional
-
 from product_school_scraper.parsing.sitemap_parser import parse_sitemap
+from product_school_scraper.services.database_service import get_average_request_time
 from product_school_scraper.utils.helper import format_seconds
 from product_school_scraper.utils.logger import logger
-from product_school_scraper.services.database_service import get_average_request_time
 
 # Constants
 RATE_LIMIT_SECONDS = 10  # Time to wait between requests
 DEFAULT_OVERHEAD_SECONDS = 10.0  # Base overhead time
 DEFAULT_AVERAGE_REQUEST_TIME = 1.0  # Default average request time in seconds
 
-def estimate_time(sitemap_url: str, directories: Optional[List[str]] = None) -> None:
+
+def estimate_time(sitemap_url: str, directories: list[str] | None = None) -> None:
     """
     Estimate how long a full scrape will take based on average request time,
     rate limit, and overhead.
@@ -23,7 +22,9 @@ def estimate_time(sitemap_url: str, directories: Optional[List[str]] = None) -> 
     average_request_time = get_average_request_time()
     if average_request_time is None:
         average_request_time = DEFAULT_AVERAGE_REQUEST_TIME
-        logger.info(f"No average request time found in DB. Using default: {average_request_time:.2f} seconds")
+        logger.info(
+            f"No average request time found in DB. Using default: {average_request_time:.2f} seconds"
+        )
     else:
         logger.info(f"Average request time from DB: {average_request_time:.2f} seconds")
 

@@ -1,18 +1,20 @@
-import requests
 import time
-from typing import List, Optional
+from pathlib import Path
 
 import pdfkit
-from pathlib import Path
+import requests
 from bs4 import BeautifulSoup
 
-from product_school_scraper.parsing.sitemap_parser import parse_sitemap
 from product_school_scraper.factories.db_factory import DBFactory
+from product_school_scraper.parsing.sitemap_parser import parse_sitemap
 from product_school_scraper.services.cleaning_service import clean_html_content
 from product_school_scraper.services.database_service import set_average_request_time
 from product_school_scraper.utils.logger import logger
 
-def list_pages(sitemap_url: str, directories: Optional[List[str]] = None, db_type: str = "sqlite") -> None:
+
+def list_pages(
+    sitemap_url: str, directories: list[str] | None = None, db_type: str = "sqlite"
+) -> None:
     """
     Parse the sitemap, store the results in DB, and log them.
     """
@@ -27,13 +29,14 @@ def list_pages(sitemap_url: str, directories: Optional[List[str]] = None, db_typ
     for url in urls:
         logger.info(f"URL: {url}")
 
+
 def fetch_pages(
     sitemap_url: str,
-    directories: Optional[List[str]] = None,
-    number_of_pages: int | None = None
+    directories: list[str] | None = None,
+    number_of_pages: int | None = None,
 ) -> None:
     """
-    Fetch pages from the sitemap, saving each as a .txt or .pdf. 
+    Fetch pages from the sitemap, saving each as a .txt or .pdf.
     Rate-limit: 1 request every 10 seconds (sequential).
     Tracks and stores the average request time upon successful completion.
     """
@@ -51,7 +54,7 @@ def fetch_pages(
     pages_dir.mkdir(exist_ok=True)
 
     RATE_LIMIT_SECONDS = 10
-    last_request_time = 0.0  
+    last_request_time = 0.0
 
     # Variables to track request durations
     total_request_time = 0.0
@@ -76,7 +79,9 @@ def fetch_pages(
             request_duration = request_end_time - request_start_time
             total_request_time += request_duration
             successful_requests += 1
-            logger.debug(f"Request duration for URL #{index}: {request_duration:.4f} seconds")
+            logger.debug(
+                f"Request duration for URL #{index}: {request_duration:.4f} seconds"
+            )
 
             last_request_time = time.time()
 
@@ -121,12 +126,18 @@ def fetch_pages(
     if successful_requests > 0:
         average_request_time = total_request_time / successful_requests
         set_average_request_time(average_request_time)
-        logger.info(f"Average request time for this run: {average_request_time:.4f} seconds")
+        logger.info(
+            f"Average request time for this run: {average_request_time:.4f} seconds"
+        )
     else:
         logger.warning("No successful requests to calculate average request time.")
 
 
-def render_pdf_pages(sitemap_url: str, directories: Optional[List[str]] = None, number_of_pages: int | None = None) -> None:
+def render_pdf_pages(
+    sitemap_url: str,
+    directories: list[str] | None = None,
+    number_of_pages: int | None = None,
+) -> None:
     """
     Similar to fetch_pages but uses pdfkit.from_url() for PDF rendering.
     Rate-limit: 1 request/10s, uses the page title for folder naming.
@@ -192,8 +203,9 @@ def _path_from_url(url: str) -> str:
     no_protocol = url.replace("http://", "").replace("https://", "")
     return no_protocol.replace("/", "-")
 
+
 def _sanitize_filename(name: str) -> str:
-    invalid_chars = ['<','>',':','"','/','\\','|','?','*']
+    invalid_chars = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
     for ch in invalid_chars:
-        name = name.replace(ch, '')
+        name = name.replace(ch, "")
     return name.strip()

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from product_school_scraper.utils.logger import logger
 
+
 class SQLiteHandler:
     """
     Simple SQLite wrapper for storing/retrieving sitemap data.
@@ -79,11 +80,13 @@ class SQLiteHandler:
     # UPDATE
     def update_url(self, url_id: int, new_url: str):
         """
-        Update a URL by ID. 
+        Update a URL by ID.
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE sitemap_urls SET url=? WHERE id=?", (new_url, url_id))
+            cursor.execute(
+                "UPDATE sitemap_urls SET url=? WHERE id=?", (new_url, url_id)
+            )
             conn.commit()
 
     # DELETE
@@ -113,9 +116,12 @@ class SQLiteHandler:
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO scraping_stats (key, value)
                 VALUES (?, ?)
                 ON CONFLICT(key) DO UPDATE SET value=excluded.value
-            """, (key, value))
+            """,
+                (key, value),
+            )
             conn.commit()

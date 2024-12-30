@@ -1,8 +1,10 @@
 import pytest
 
+
 @pytest.fixture(scope="session")
 def sitemap_url():
     return "https://productschool.com/sitemap.xml"
+
 
 @pytest.fixture(scope="session")
 def sample_sitemap_xml():

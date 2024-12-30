@@ -4,6 +4,7 @@ import pypdf
 
 from product_school_scraper.utils.logger import logger
 
+
 def verify_pages(pages_dir: str = "pages"):
     """
     Verifies that each subdirectory in `pages_dir` contains:
@@ -11,7 +12,7 @@ def verify_pages(pages_dir: str = "pages"):
       2) A non-empty text file.
 
     Logs debug information for each file and an info-level summary.
-    
+
     Args:
         pages_dir (str): The path to the directory where pages are saved.
     """
@@ -71,7 +72,7 @@ def _is_valid_pdf(pdf_path: Path) -> bool:
         return False
 
     try:
-        with open(pdf_path, 'rb') as f:
+        with open(pdf_path, "rb") as f:
             reader = pypdf.PdfReader(f)
             # If there's an error in parsing, an exception will be raised.
             # Checking if it has at least 1 page:

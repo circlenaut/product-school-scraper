@@ -1,7 +1,6 @@
-from typing import Optional
-
 from product_school_scraper.factories.db_factory import DBFactory
 from product_school_scraper.utils.logger import logger
+
 
 def show_all_urls(db_type: str = "sqlite"):
     db = DBFactory.get_db(db_type)
@@ -10,17 +9,20 @@ def show_all_urls(db_type: str = "sqlite"):
     for url in urls:
         logger.info(url)
 
+
 def update_url(url_id: int, new_url: str, db_type: str = "sqlite"):
     db = DBFactory.get_db(db_type)
     db.update_url(url_id, new_url)
     logger.info(f"Updated URL [ID={url_id}] => {new_url}")
+
 
 def delete_url(url_id: int, db_type: str = "sqlite"):
     db = DBFactory.get_db(db_type)
     db.delete_url(url_id)
     logger.info(f"Deleted URL [ID={url_id}]")
 
-def get_average_request_time(db_type: str = "sqlite") -> Optional[float]:
+
+def get_average_request_time(db_type: str = "sqlite") -> float | None:
     """
     Retrieve the average request time from the database.
     """
@@ -31,6 +33,7 @@ def get_average_request_time(db_type: str = "sqlite") -> Optional[float]:
     else:
         logger.debug("No average_request_time found in DB.")
     return avg_time
+
 
 def set_average_request_time(avg_time: float, db_type: str = "sqlite") -> None:
     """

@@ -4,13 +4,14 @@ from bs4 import BeautifulSoup
 
 from product_school_scraper.utils.logger import logger
 
+
 def remove_boilerplate_phrases(text: str) -> str:
     """
     Removes known repeated site-wide or marketing/housekeeping text along with surrounding whitespace and trailing punctuation.
-    
+
     Args:
         text (str): The text to clean.
-    
+
     Returns:
         str: The cleaned text with boilerplate phrases removed.
     """
@@ -21,34 +22,35 @@ def remove_boilerplate_phrases(text: str) -> str:
         "Resources you might like",
         "Enjoyed the article? You might like this too",
         "Share this postYour EmailSubscribe",
-        "Discover where Product is heading next"
+        "Discover where Product is heading next",
         # Add other boilerplate phrases here as needed
     ]
 
     # Escape all phrases for regex and join them with '|'
     escaped_phrases = [re.escape(phrase) for phrase in boilerplate_phrases]
     pattern = re.compile(
-        r'\s*(' + '|'.join(escaped_phrases) + r')[\.\?!]*\s*',
-        re.IGNORECASE
+        r"\s*(" + "|".join(escaped_phrases) + r")[\.\?!]*\s*",
+        re.IGNORECASE,
     )
 
     # Substitute matched phrases with a single space
-    cleaned_text = pattern.sub(' ', text)
+    cleaned_text = pattern.sub(" ", text)
 
     # Replace multiple spaces with a single space and strip leading/trailing spaces
-    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+    cleaned_text = re.sub(r"\s+", " ", cleaned_text).strip()
 
     logger.debug("Boilerplate phrases removed. Cleaned text: %s", cleaned_text)
     return cleaned_text
+
 
 def fix_missing_space_after_period(text: str) -> str:
     """
     Inserts a space after a period if it's immediately followed by
     a letter/digit without any space. E.g. "word.Another" -> "word. Another"
-    
+
     Args:
         text (str): The text to fix.
-    
+
     Returns:
         str: The text with spaces fixed after periods.
     """
@@ -61,15 +63,16 @@ def fix_missing_space_after_period(text: str) -> str:
     logger.debug("Fixed missing spaces after periods. Text: %s", fixed_text)
     return fixed_text
 
+
 def clean_html_content(page_title: str, page_content: BeautifulSoup) -> str:
     """
     Strips out navigation/footer/boilerplate, normalizes whitespace,
     and returns the main textual content.
-    
+
     Args:
         page_title (str): The title of the page being cleaned.
         page_content (BeautifulSoup): The BeautifulSoup object of the page content.
-    
+
     Returns:
         str: The cleaned textual content.
     """
@@ -77,11 +80,11 @@ def clean_html_content(page_title: str, page_content: BeautifulSoup) -> str:
         logger.info(f"Cleaning page: {page_title}")
 
         # 1) Remove known boilerplate elements
-        for nav_tag in page_content.find_all('nav'):
+        for nav_tag in page_content.find_all("nav"):
             nav_tag.decompose()
-        for footer_tag in page_content.find_all('footer'):
+        for footer_tag in page_content.find_all("footer"):
             footer_tag.decompose()
-        for header_tag in page_content.find_all('header'):
+        for header_tag in page_content.find_all("header"):
             header_tag.decompose()
 
         # 2) Focus on a main/article block if it exists
