@@ -1,8 +1,8 @@
-# tests/test_sitemap_parser.py
+import requests
 import pytest
 from unittest.mock import Mock
+
 from product_school_scraper.parsing.sitemap_parser import parse_sitemap
-import requests
 
 @pytest.fixture
 def mock_sitemap_xml():

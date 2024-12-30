@@ -1,12 +1,12 @@
-# tests/test_cleaning_service.py
-
 import pytest
+
+from bs4 import BeautifulSoup
+
 from product_school_scraper.services.cleaning_service import (
     remove_boilerplate_phrases,
     fix_missing_space_after_period,
     clean_html_content
 )
-from bs4 import BeautifulSoup
 
 def test_remove_boilerplate_phrases_middle():
     """

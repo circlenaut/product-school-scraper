@@ -1,10 +1,10 @@
-# tests/test_scraping_service.py
 
-from bs4 import BeautifulSoup
+import requests
 import pytest
 from unittest.mock import Mock, call, ANY
 
-import requests
+from bs4 import BeautifulSoup
+
 from product_school_scraper.services.scraping_service import (
     list_pages,
     fetch_pages,

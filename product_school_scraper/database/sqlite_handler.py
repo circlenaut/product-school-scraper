@@ -1,6 +1,7 @@
+import sqlite3
 from pathlib import Path
 
-import sqlite3
+from product_school_scraper.utils.logger import logger
 
 class SQLiteHandler:
     """
@@ -25,6 +26,14 @@ class SQLiteHandler:
                 )
             """)
             conn.commit()
+            # Table for storing scraping statistics
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS scraping_stats (
+                    key TEXT PRIMARY KEY,
+                    value REAL
+                )
+            """)
+            conn.commit()
 
     # CREATE
     def create_url(self, url: str):
@@ -36,7 +45,7 @@ class SQLiteHandler:
             try:
                 cursor.execute("INSERT INTO sitemap_urls (url) VALUES (?)", (url,))
             except sqlite3.IntegrityError:
-                pass
+                logger.warning(f"Attempted to insert duplicate URL: {url}")
             conn.commit()
 
     def store_urls(self, urls: list[str]):
@@ -85,4 +94,28 @@ class SQLiteHandler:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM sitemap_urls WHERE id=?", (url_id,))
+            conn.commit()
+
+    # Additional Methods for scraping_stats
+    def get_stat(self, key: str) -> float | None:
+        """
+        Retrieve a statistical value by key.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM scraping_stats WHERE key=?", (key,))
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+    def set_stat(self, key: str, value: float) -> None:
+        """
+        Insert or update a statistical value by key.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO scraping_stats (key, value)
+                VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """, (key, value))
             conn.commit()

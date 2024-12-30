@@ -1,5 +1,5 @@
-# tests/test_db_factory.py
 import pytest
+
 from product_school_scraper.factories.db_factory import DBFactory
 from product_school_scraper.database.sqlite_handler import SQLiteHandler
 

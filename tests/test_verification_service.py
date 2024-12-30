@@ -1,10 +1,8 @@
-# tests/test_verification_service.py
-
 import logging
 from pathlib import Path
+import pytest
 from unittest.mock import Mock, mock_open
 
-import pytest
 from product_school_scraper.services.verification_service import verify_pages
 from product_school_scraper.utils.logger import logger
 

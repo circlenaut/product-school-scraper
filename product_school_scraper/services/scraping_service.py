@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from product_school_scraper.parsing.sitemap_parser import parse_sitemap
 from product_school_scraper.factories.db_factory import DBFactory
 from product_school_scraper.services.cleaning_service import clean_html_content
+from product_school_scraper.services.database_service import set_average_request_time
 from product_school_scraper.utils.logger import logger
 
 def list_pages(sitemap_url: str, directories: Optional[List[str]] = None, db_type: str = "sqlite") -> None:
@@ -34,6 +35,7 @@ def fetch_pages(
     """
     Fetch pages from the sitemap, saving each as a .txt or .pdf. 
     Rate-limit: 1 request every 10 seconds (sequential).
+    Tracks and stores the average request time upon successful completion.
     """
     logger.info(f"Fetching pages from sitemap: {sitemap_url}")
 
@@ -51,6 +53,10 @@ def fetch_pages(
     RATE_LIMIT_SECONDS = 10
     last_request_time = 0.0  
 
+    # Variables to track request durations
+    total_request_time = 0.0
+    successful_requests = 0
+
     for index, url in enumerate(urls, start=1):
         # Rate-limit: wait if needed
         elapsed = time.time() - last_request_time
@@ -61,8 +67,17 @@ def fetch_pages(
 
         try:
             logger.info(f"Scraping URL #{index}: {url}")
+            request_start_time = time.time()
             response = requests.get(url, timeout=15)
             response.raise_for_status()
+            request_end_time = time.time()
+
+            # Calculate request duration
+            request_duration = request_end_time - request_start_time
+            total_request_time += request_duration
+            successful_requests += 1
+            logger.debug(f"Request duration for URL #{index}: {request_duration:.4f} seconds")
+
             last_request_time = time.time()
 
             page_content = BeautifulSoup(response.text, "html.parser")
@@ -101,6 +116,14 @@ def fetch_pages(
             logger.error(f"Unexpected error for URL #{index} ({url}): {exc}")
 
     logger.info("fetch_pages completed.")
+
+    # Calculate and store average request time if there were successful requests
+    if successful_requests > 0:
+        average_request_time = total_request_time / successful_requests
+        set_average_request_time(average_request_time)
+        logger.info(f"Average request time for this run: {average_request_time:.4f} seconds")
+    else:
+        logger.warning("No successful requests to calculate average request time.")
 
 
 def render_pdf_pages(sitemap_url: str, directories: Optional[List[str]] = None, number_of_pages: int | None = None) -> None:

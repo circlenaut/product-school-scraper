@@ -1,7 +1,7 @@
-# product_school_scraper/services/cleaning_service.py
-
 import re
+
 from bs4 import BeautifulSoup
+
 from product_school_scraper.utils.logger import logger
 
 def remove_boilerplate_phrases(text: str) -> str:

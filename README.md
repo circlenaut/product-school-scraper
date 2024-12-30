@@ -84,8 +84,7 @@ poetry run product-school-scraper [OPTIONS] <COMMAND> [ARGS...]
   poetry run product-school-scraper scraper fetch_pages \
       --sitemap_url https://productschool.com/sitemap.xml \
       --directory /blog/ \
-      --number_of_pages 5 \
-      --output_format pdf
+      --number_of_pages 5
   ```
 
 - `render_pdf`  

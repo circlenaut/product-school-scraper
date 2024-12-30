@@ -1,10 +1,8 @@
-# tests/test_main.py
-
-import pytest
-from unittest.mock import Mock, patch
 import sys
 import signal
 import runpy
+import pytest
+from unittest.mock import Mock, patch
 
 def test_main_calls_run_cli_and_sets_signal_handler(mocker):
     """

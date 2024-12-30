@@ -1,11 +1,8 @@
-# tests/test_cli.py
-
 import logging
+import pytest
 from unittest.mock import Mock, mock_open
 
-import pytest
 from product_school_scraper.cli import ScraperCLI, DatabaseCLI
-
 
 def test_scraper_cli_verify(mocker, caplog):
     """
