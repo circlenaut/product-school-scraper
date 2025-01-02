@@ -89,6 +89,12 @@ poetry run product-school-scraper [OPTIONS] <COMMAND> [ARGS...]
       --number_of_pages 5
   ```
 
+- `fetch_page`  
+  Fetch a single page by index.
+
+- `list_directories`  
+  List all directories in sitemap.
+
 - `render_pdf`  
   Similar to `fetch_pages`, but renders PDFs directly from URLs (via `pdfkit.from_url`).  
 
@@ -111,6 +117,14 @@ poetry run product-school-scraper [OPTIONS] <COMMAND> [ARGS...]
 
 - `delete_url <url_id>`  
   Remove a URL by ID.
+
+**Cleaning Commands** (under `cleaning`):
+
+- `rename-files`  
+  Rename text files based on parent directory.
+
+- `merge-files`  
+  Merge text files into a single output
 
 ### Verbose Logging
 
