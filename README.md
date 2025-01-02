@@ -45,7 +45,7 @@ This command-line tool is designed to scrape data from [Product School](https://
 ### Installation
 1. Clone this repository:
    ```bash
-   git clone https://github.com/your-organization/product-school-scraper.git
+   git clone https://github.com/circlenaut/product-school-scraper.git
    cd product-school-scraper
    ```
 
