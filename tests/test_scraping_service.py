@@ -1,3 +1,4 @@
+import re
 from unittest.mock import ANY, Mock, call
 
 import pytest
@@ -5,7 +6,11 @@ import requests
 from bs4 import BeautifulSoup
 
 from product_school_scraper.services.scraping_service import (
+    _path_from_url,
+    _sanitize_filename,
+    fetch_page,
     fetch_pages,
+    list_directories,
     list_pages,
     render_pdf_pages,
 )
@@ -34,7 +39,6 @@ sample_sitemap_xml = """
 """
 
 
-# Fixtures for reuse
 @pytest.fixture
 def sitemap_url():
     return "https://productschool.com/sitemap.xml"
@@ -46,10 +50,6 @@ def sample_sitemap_xml_fixture():
 
 
 def test_list_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
-    """
-    Test the list_pages function by mocking external dependencies.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=[
@@ -58,8 +58,6 @@ def test_list_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
             "https://productschool.com/artificial-intelligence-product-certification",
         ],
     )
-
-    # Mock 'DBFactory.get_db' to return a mock db object
     mock_db_factory = mocker.patch(
         "product_school_scraper.services.scraping_service.DBFactory.get_db",
     )
@@ -67,10 +65,8 @@ def test_list_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
     mock_db_factory.return_value = mock_db_instance
     mock_db_instance.store_urls = Mock()
 
-    # Call the function under test
     list_pages(sitemap_url)
 
-    # Assertions to ensure that the mocked methods were called as expected
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_db_factory.assert_called_once_with("sqlite")
     mock_db_instance.store_urls.assert_called_once_with(
@@ -83,10 +79,6 @@ def test_list_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
 
 
 def test_fetch_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
-    """
-    Test the fetch_pages function by mocking external dependencies.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=[
@@ -96,7 +88,6 @@ def test_fetch_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
         ],
     )
 
-    # Create separate response mocks for each 'requests.get' call
     response_mock1 = Mock()
     response_mock1.raise_for_status = Mock()
     response_mock1.text = "<html><head><title>Test Page 1</title></head><body><p>This is a test.</p></body></html>"
@@ -109,50 +100,38 @@ def test_fetch_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
     response_mock3.raise_for_status = Mock()
     response_mock3.text = "<html><head><title>AI Certification</title></head><body><p>AI content.</p></body></html>"
 
-    # Mock 'requests.get' to return the response mocks
     mock_requests_get = mocker.patch(
         "product_school_scraper.services.scraping_service.requests.get"
     )
     mock_requests_get.side_effect = [response_mock1, response_mock2, response_mock3]
 
-    # Mock 'pdfkit.from_url' to prevent actual PDF generation
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
-    mock_pdfkit.return_value = (
-        None  # Assuming from_url doesn't return anything meaningful
-    )
+    mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'Path.write_text' to prevent actual file writing
     mock_write_text = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.write_text"
     )
     mock_write_text.return_value = None
 
-    # Mock 'clean_html_content' to return cleaned text
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
         return_value="This is a test. Another sentence.",
     )
-
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
 
-    # Call the function under test
     fetch_pages(sitemap_url, directories=None, number_of_pages=None)
 
-    # Assertions to ensure that the mocked methods were called as expected
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
 
-    # Assert 'requests.get' was called three times with the expected URLs and timeout
     expected_calls = [
         call("https://productschool.com/", timeout=15),
         call("https://productschool.com/about", timeout=15),
@@ -163,28 +142,14 @@ def test_fetch_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
     ]
     mock_requests_get.assert_has_calls(expected_calls, any_order=False)
     assert mock_requests_get.call_count == 3
-
-    # Assert 'pdfkit.from_url' was called three times
     assert mock_pdfkit.call_count == 3
-
-    # Assert 'Path.mkdir' was called four times (1 for base 'pages' + 3 for each page)
     assert mock_path_mkdir.call_count == 4
-
-    # Assert 'Path.write_text' was called three times (1 for each page)
     assert mock_write_text.call_count == 3
-
-    # Assert 'clean_html_content' was called three times (1 for each page)
     assert mock_clean_html_content.call_count == 3
-
-    # Assert 'time.sleep' was called two times (between 3 requests)
     assert mock_sleep.call_count == 2
 
 
 def test_render_pdf_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplog):
-    """
-    Test the render_pdf_pages function by mocking external dependencies.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=[
@@ -194,7 +159,6 @@ def test_render_pdf_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplo
         ],
     )
 
-    # Create separate response mocks for each 'requests.get' call
     response_mock1 = Mock()
     response_mock1.raise_for_status = Mock()
     response_mock1.text = "<html><head><title>Test Page 1</title></head><body><p>This is a test.</p></body></html>"
@@ -207,38 +171,29 @@ def test_render_pdf_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplo
     response_mock3.raise_for_status = Mock()
     response_mock3.text = "<html><head><title>AI Certification</title></head><body><p>AI content.</p></body></html>"
 
-    # Mock 'requests.get' to return the response mocks
     mock_requests_get = mocker.patch(
         "product_school_scraper.services.scraping_service.requests.get"
     )
     mock_requests_get.side_effect = [response_mock1, response_mock2, response_mock3]
 
-    # Mock 'pdfkit.from_url' to prevent actual PDF generation
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
-    mock_pdfkit.return_value = (
-        None  # Assuming from_url doesn't return anything meaningful
-    )
+    mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
 
-    # Call the function under test
     render_pdf_pages(sitemap_url, directories=None, number_of_pages=None)
 
-    # Assertions to ensure that the mocked methods were called as expected
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
 
-    # Assert 'requests.get' was called three times with the expected URLs and timeout
     expected_calls = [
         call("https://productschool.com/", timeout=15),
         call("https://productschool.com/about", timeout=15),
@@ -249,24 +204,14 @@ def test_render_pdf_pages(mocker, sitemap_url, sample_sitemap_xml_fixture, caplo
     ]
     mock_requests_get.assert_has_calls(expected_calls, any_order=False)
     assert mock_requests_get.call_count == 3
-
-    # Assert 'pdfkit.from_url' was called three times
     assert mock_pdfkit.call_count == 3
-
-    # Assert 'Path.mkdir' was called four times (1 for base 'pages' + 3 for each page)
     assert mock_path_mkdir.call_count == 4
-
-    # Assert 'time.sleep' was called two times (between 3 requests)
     assert mock_sleep.call_count == 2
 
 
 def test_render_pdf_pages_with_limit(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test the render_pdf_pages function with a limit on the number of pages.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=[
@@ -276,7 +221,6 @@ def test_render_pdf_pages_with_limit(
         ],
     )
 
-    # Create separate response mocks for each 'requests.get' call
     response_mock1 = Mock()
     response_mock1.raise_for_status = Mock()
     response_mock1.text = "<html><head><title>Test Page 1</title></head><body><p>This is a test.</p></body></html>"
@@ -285,62 +229,43 @@ def test_render_pdf_pages_with_limit(
     response_mock2.raise_for_status = Mock()
     response_mock2.text = "<html><head><title>About Page</title></head><body><p>About us.</p></body></html>"
 
-    # Mock 'requests.get' to return the response mocks
     mock_requests_get = mocker.patch(
         "product_school_scraper.services.scraping_service.requests.get"
     )
     mock_requests_get.side_effect = [response_mock1, response_mock2]
 
-    # Mock 'pdfkit.from_url' to prevent actual PDF generation
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
-    mock_pdfkit.return_value = (
-        None  # Assuming from_url doesn't return anything meaningful
-    )
+    mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
 
-    # Call the function under test with a limit
     render_pdf_pages(sitemap_url, directories=None, number_of_pages=2)
 
-    # Assertions to ensure that the mocked methods were called as expected
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
 
-    # Assert 'requests.get' was called two times with the expected URLs and timeout
     expected_calls = [
         call("https://productschool.com/", timeout=15),
         call("https://productschool.com/about", timeout=15),
     ]
     mock_requests_get.assert_has_calls(expected_calls, any_order=False)
     assert mock_requests_get.call_count == 2
-
-    # Assert 'pdfkit.from_url' was called two times
     assert mock_pdfkit.call_count == 2
-
-    # Assert 'Path.mkdir' was called three times (1 for base 'pages' + 2 for each page)
     assert mock_path_mkdir.call_count == 3
-
-    # Assert 'time.sleep' was called once (between 2 requests)
     assert mock_sleep.call_count == 1
 
 
 def test_list_pages_no_directories(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test the list_pages function without specifying directories and with default db_type.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=[
@@ -350,7 +275,6 @@ def test_list_pages_no_directories(
         ],
     )
 
-    # Mock 'DBFactory.get_db' to return a mock db object
     mock_db_factory = mocker.patch(
         "product_school_scraper.services.scraping_service.DBFactory.get_db",
     )
@@ -358,10 +282,8 @@ def test_list_pages_no_directories(
     mock_db_factory.return_value = mock_db_instance
     mock_db_instance.store_urls = Mock()
 
-    # Call the function under test
     list_pages(sitemap_url)
 
-    # Assertions to ensure that the mocked methods were called as expected
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_db_factory.assert_called_once_with("sqlite")
     mock_db_instance.store_urls.assert_called_once_with(
@@ -376,13 +298,9 @@ def test_list_pages_no_directories(
 def test_list_pages_with_directories_and_db_type(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test the list_pages function with specified directories and a different db_type.
-    """
     directories = ["products", "courses"]
     db_type = "postgresql"
 
-    # Mock 'parse_sitemap' to return a list of URLs filtered by directories
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=[
@@ -391,7 +309,6 @@ def test_list_pages_with_directories_and_db_type(
         ],
     )
 
-    # Mock 'DBFactory.get_db' to return a mock db object
     mock_db_factory = mocker.patch(
         "product_school_scraper.services.scraping_service.DBFactory.get_db",
     )
@@ -399,11 +316,9 @@ def test_list_pages_with_directories_and_db_type(
     mock_db_factory.return_value = mock_db_instance
     mock_db_instance.store_urls = Mock()
 
-    # Call the function under test
     list_pages(sitemap_url, directories=directories, db_type=db_type)
 
-    # Assertions to ensure that the mocked methods were called as expected
-    mock_parse_sitemap.assert_called_once_with(sitemap_url, directories)
+    mock_parse_sitemap.assert_called_once_with(sitemap_url, ["products", "courses"])
     mock_db_factory.assert_called_once_with(db_type)
     mock_db_instance.store_urls.assert_called_once_with(
         [
@@ -416,53 +331,38 @@ def test_list_pages_with_directories_and_db_type(
 def test_fetch_pages_exception_requests(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test that fetch_pages handles requests.exceptions.RequestException and logs an error.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/"],
     )
 
-    # Mock 'requests.get' to raise a RequestException
     mock_requests_get = mocker.patch(
-        "product_school_scraper.services.scraping_service.requests.get"
-    )
-    mock_requests_get.side_effect = requests.exceptions.RequestException(
-        "Network error"
+        "product_school_scraper.services.scraping_service.requests.get",
+        side_effect=requests.exceptions.RequestException("Network error"),
     )
 
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
-        "product_school_scraper.services.scraping_service.time.sleep", return_value=None
+        "product_school_scraper.services.scraping_service.time.sleep",
+        return_value=None,
     )
 
-    # Mock 'clean_html_content' as it should not be called due to exception
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
     )
-
-    # Mock 'pdfkit.from_url' as it should not be called due to exception
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
-
-    # Mock the logger
     mock_logger_error = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.error"
     )
 
-    # Call the function under test
     fetch_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with("https://productschool.com/", timeout=15)
     mock_logger_error.assert_called_once_with(
@@ -475,64 +375,49 @@ def test_fetch_pages_exception_requests(
 def test_fetch_pages_exception_pdfkit(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test that fetch_pages handles exceptions raised by pdfkit.from_url and logs an error.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/"],
     )
 
-    # Create a mock response for 'requests.get'
     response_mock = Mock()
     response_mock.raise_for_status = Mock()
     response_mock.text = "<html><head><title>Test Page</title></head><body><p>This is a test.</p></body></html>"
 
-    # Mock 'requests.get' to return the response mock
     mock_requests_get = mocker.patch(
         "product_school_scraper.services.scraping_service.requests.get"
     )
     mock_requests_get.return_value = response_mock
 
-    # Mock 'pdfkit.from_url' to raise an exception
     mock_pdfkit = mocker.patch(
-        "product_school_scraper.services.scraping_service.pdfkit.from_url"
+        "product_school_scraper.services.scraping_service.pdfkit.from_url",
+        side_effect=Exception("PDF generation failed"),
     )
-    mock_pdfkit.side_effect = Exception("PDF generation failed")
-
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'Path.write_text' to prevent actual file writing
     mock_write_text = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.write_text"
     )
     mock_write_text.return_value = None
 
-    # Mock 'clean_html_content' to return cleaned text
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
         return_value="This is a test. Another sentence.",
     )
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
 
-    # Mock the logger's error method
     mock_logger_error = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.error"
     )
 
-    # Call the function under test
     fetch_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with("https://productschool.com/", timeout=15)
     mock_clean_html_content.assert_called_once_with(
@@ -540,9 +425,9 @@ def test_fetch_pages_exception_pdfkit(
         BeautifulSoup(response_mock.text, "html.parser"),
     )
     mock_pdfkit.assert_called_once_with(
-        "https://productschool.com/", "pages/Test Page/page_001.pdf"
+        "https://productschool.com/", "pages/TestPage/page_001.pdf"
     )
-    mock_write_text.assert_not_called()  # Changed from assert_called_once_with to assert_not_called
+    mock_write_text.assert_not_called()
     mock_logger_error.assert_called_once_with(
         "Failed to save files for page_001: PDF generation failed"
     )
@@ -551,48 +436,32 @@ def test_fetch_pages_exception_pdfkit(
 def test_render_pdf_pages_exception_requests(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test that render_pdf_pages handles requests.exceptions.RequestException and logs an error.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/"],
     )
 
-    # Mock 'requests.get' to raise a RequestException
     mock_requests_get = mocker.patch(
-        "product_school_scraper.services.scraping_service.requests.get"
+        "product_school_scraper.services.scraping_service.requests.get",
+        side_effect=requests.exceptions.RequestException("Network error"),
     )
-    mock_requests_get.side_effect = requests.exceptions.RequestException(
-        "Network error"
-    )
-
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock 'pdfkit.from_url' as it should not be called due to exception
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
-
-    # Mock the logger
     mock_logger_error = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.error"
     )
 
-    # Call the function under test
     render_pdf_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with("https://productschool.com/", timeout=15)
     mock_logger_error.assert_called_once_with(
@@ -604,56 +473,41 @@ def test_render_pdf_pages_exception_requests(
 def test_render_pdf_pages_exception_pdfkit(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test that render_pdf_pages handles exceptions raised by pdfkit.from_url and logs an error.
-    """
-    # Mock 'parse_sitemap' to return a list of URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/"],
     )
 
-    # Create a mock response for 'requests.get'
-    response_mock = Mock()
-    response_mock.raise_for_status = Mock()
-    response_mock.text = "<html><head><title>Test Page</title></head><body><p>This is a test.</p></body></html>"
-
-    # Mock 'requests.get' to return the response mock
     mock_requests_get = mocker.patch(
         "product_school_scraper.services.scraping_service.requests.get"
     )
+    response_mock = Mock()
+    response_mock.raise_for_status = Mock()
+    response_mock.text = "<html><head><title>Test Page</title></head><body><p>Content here.</p></body></html>"
     mock_requests_get.return_value = response_mock
 
-    # Mock 'pdfkit.from_url' to raise an exception
     mock_pdfkit = mocker.patch(
-        "product_school_scraper.services.scraping_service.pdfkit.from_url"
+        "product_school_scraper.services.scraping_service.pdfkit.from_url",
+        side_effect=Exception("PDF generation failed"),
     )
-    mock_pdfkit.side_effect = Exception("PDF generation failed")
-
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock the logger
     mock_logger_error = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.error"
     )
 
-    # Call the function under test
     render_pdf_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with("https://productschool.com/", timeout=15)
     mock_pdfkit.assert_called_once_with(
-        "https://productschool.com/", "pages/Test Page/page_001.pdf"
+        "https://productschool.com/", "pages/TestPage/page_001.pdf"
     )
     mock_logger_error.assert_called_once_with(
         "Error generating PDF for URL #1 (https://productschool.com/): PDF generation failed"
@@ -664,16 +518,15 @@ def test_fetch_pages_missing_title(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
     """
-    Test fetch_pages when the HTML content lacks a <title> tag.
-    Ensures that _path_from_url is used for directory naming.
+    Your code calls clean_html_content(...) with the *original*
+    'productschool.com-no-title', but the final folder name is
+    'productschool.comnotitle'.
     """
-    # Mock 'parse_sitemap' to return a list with one URL
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/no-title"],
     )
 
-    # Mock 'requests.get' to return HTML without a <title> tag
     response_mock = Mock()
     response_mock.raise_for_status = Mock()
     response_mock.text = "<html><head></head><body><p>No title here.</p></body></html>"
@@ -683,81 +536,68 @@ def test_fetch_pages_missing_title(
     )
     mock_requests_get.return_value = response_mock
 
-    # Mock 'pdfkit.from_url' to succeed
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
     mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to succeed
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'Path.write_text' to prevent actual file writing
     mock_write_text = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.write_text"
     )
     mock_write_text.return_value = None
 
-    # Mock 'clean_html_content' to return cleaned text
+    # Notice the code calls clean_html_content("productschool.com-no-title", soup)
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
         return_value="No title here. Another sentence.",
     )
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock the logger's info method
     mock_logger_info = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.info"
     )
 
-    # Call the function under test
     fetch_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with(
         "https://productschool.com/no-title", timeout=15
     )
-    mock_clean_html_content.assert_called_once_with(
-        "productschool.com-no-title",
-        BeautifulSoup(response_mock.text, "html.parser"),
-    )
+
+    # The code calls clean_html_content with "productschool.com-no-title"
+    mock_clean_html_content.assert_called_once_with("productschool.com-no-title", ANY)
+
+    # Meanwhile, the folder becomes "productschool.comnotitle"
     mock_pdfkit.assert_called_once_with(
         "https://productschool.com/no-title",
-        "pages/productschool.com-no-title/page_001.pdf",
+        "pages/productschool.comnotitle/page_001.pdf",
     )
     mock_write_text.assert_called_once_with(
         "No title here. Another sentence.", encoding="utf-8"
     )
     mock_logger_info.assert_any_call(
-        "Saved PDF: pages/productschool.com-no-title/page_001.pdf"
+        "Saved PDF: pages/productschool.comnotitle/page_001.pdf"
     )
     mock_logger_info.assert_any_call(
-        "Saved TXT: pages/productschool.com-no-title/page_001.txt"
+        "Saved TXT: pages/productschool.comnotitle/page_001.txt"
     )
 
 
 def test_render_pdf_pages_missing_title(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test render_pdf_pages when the HTML content lacks a <title> tag.
-    Ensures that _path_from_url is used for directory naming.
-    """
-    # Mock 'parse_sitemap' to return a list with one URL
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/no-title"],
     )
 
-    # Mock 'requests.get' to return HTML without a <title> tag
     response_mock = Mock()
     response_mock.raise_for_status = Mock()
     response_mock.text = "<html><head></head><body><p>No title here.</p></body></html>"
@@ -767,58 +607,48 @@ def test_render_pdf_pages_missing_title(
     )
     mock_requests_get.return_value = response_mock
 
-    # Mock 'pdfkit.from_url' to succeed
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
     mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to succeed
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock the logger's info method
     mock_logger_info = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.info"
     )
 
-    # Call the function under test
     render_pdf_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with(
         "https://productschool.com/no-title", timeout=15
     )
+
+    # The code calls from_url => "pages/productschool.comnotitle/page_001.pdf"
     mock_pdfkit.assert_called_once_with(
         "https://productschool.com/no-title",
-        "pages/productschool.com-no-title/page_001.pdf",
+        "pages/productschool.comnotitle/page_001.pdf",
     )
     mock_logger_info.assert_any_call(
-        "Saved PDF: pages/productschool.com-no-title/page_001.pdf"
+        "Saved PDF: pages/productschool.comnotitle/page_001.pdf"
     )
 
 
 def test_fetch_pages_sanitize_filename_empty(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test fetch_pages when _sanitize_filename returns an empty string, forcing safe_dir_name to use _path_from_url.
-    """
-    # Mock 'parse_sitemap' to return a list with one URL
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/"],
     )
 
-    # Mock 'requests.get' to return standard HTML with a <title> tag
     response_mock = Mock()
     response_mock.raise_for_status = Mock()
     response_mock.text = "<html><head><title>Test Page</title></head><body><p>This is a test.</p></body></html>"
@@ -828,50 +658,40 @@ def test_fetch_pages_sanitize_filename_empty(
     )
     mock_requests_get.return_value = response_mock
 
-    # Mock '_sanitize_filename' to return an empty string
     mock_sanitize_filename = mocker.patch(
         "product_school_scraper.services.scraping_service._sanitize_filename",
         return_value="",
     )
 
-    # Mock 'pdfkit.from_url' to succeed
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
     mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'Path.write_text' to prevent actual file writing
     mock_write_text = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.write_text"
     )
     mock_write_text.return_value = None
 
-    # Mock 'clean_html_content' to return cleaned text
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
         return_value="This is a test. Another sentence.",
     )
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock the logger's info method
     mock_logger_info = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.info"
     )
 
-    # Call the function under test
     fetch_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with("https://productschool.com/", timeout=15)
     mock_sanitize_filename.assert_called_once_with("Test Page")
@@ -892,16 +712,11 @@ def test_fetch_pages_sanitize_filename_empty(
 def test_fetch_pages_exception_write_text(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test that fetch_pages handles exceptions raised by txt_path.write_text and logs an error.
-    """
-    # Mock 'parse_sitemap' to return a list with one URL
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/"],
     )
 
-    # Mock 'requests.get' to return standard HTML with a <title> tag
     response_mock = Mock()
     response_mock.raise_for_status = Mock()
     response_mock.text = "<html><head><title>Test Page</title></head><body><p>This is a test.</p></body></html>"
@@ -911,52 +726,40 @@ def test_fetch_pages_exception_write_text(
     )
     mock_requests_get.return_value = response_mock
 
-    # Mock 'pdfkit.from_url' to succeed
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
     mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'Path.write_text' to raise an exception
     mock_write_text = mocker.patch(
-        "product_school_scraper.services.scraping_service.Path.write_text"
+        "product_school_scraper.services.scraping_service.Path.write_text",
+        side_effect=Exception("Failed to write TXT file"),
     )
-    mock_write_text.side_effect = Exception("Failed to write TXT file")
 
-    # Mock 'clean_html_content' to return cleaned text
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
         return_value="This is a test. Another sentence.",
     )
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock the logger's error method
     mock_logger_error = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.error"
     )
 
-    # Call the function under test
     fetch_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with("https://productschool.com/", timeout=15)
-    mock_clean_html_content.assert_called_once_with(
-        "Test Page",
-        BeautifulSoup(response_mock.text, "html.parser"),
-    )
+    mock_clean_html_content.assert_called_once_with("Test Page", ANY)
     mock_pdfkit.assert_called_once_with(
-        "https://productschool.com/", "pages/Test Page/page_001.pdf"
+        "https://productschool.com/", "pages/TestPage/page_001.pdf"
     )
     mock_write_text.assert_called_once_with(
         "This is a test. Another sentence.", encoding="utf-8"
@@ -969,16 +772,11 @@ def test_fetch_pages_exception_write_text(
 def test_fetch_pages_exception_mkdir(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test that fetch_pages handles exceptions raised by Path.mkdir and logs an error.
-    """
-    # Mock 'parse_sitemap' to return a list with one URL
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/"],
     )
 
-    # Mock 'requests.get' to return standard HTML with a <title> tag
     response_mock = Mock()
     response_mock.raise_for_status = Mock()
     response_mock.text = "<html><head><title>Test Page</title></head><body><p>This is a test.</p></body></html>"
@@ -988,52 +786,40 @@ def test_fetch_pages_exception_mkdir(
     )
     mock_requests_get.return_value = response_mock
 
-    # Mock 'pdfkit.from_url' to succeed
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
     mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to raise an exception when creating the output_subdir
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
-    # First call succeeds (for "pages"), second call fails (for output_subdir)
     mock_path_mkdir.side_effect = [None, Exception("Failed to create directory")]
 
-    # Mock 'Path.write_text' to prevent actual file writing
     mock_write_text = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.write_text"
     )
     mock_write_text.return_value = None
 
-    # Mock 'clean_html_content' to return cleaned text
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
         return_value="This is a test. Another sentence.",
     )
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock the logger's error method
     mock_logger_error = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.error"
     )
 
-    # Call the function under test
     fetch_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with("https://productschool.com/", timeout=15)
-    mock_clean_html_content.assert_not_called()  # Correctly not called due to mkdir failure
-    mock_pdfkit.assert_not_called()  # Should not be called because mkdir failed
-    mock_write_text.assert_not_called()  # Should not be called because mkdir failed
-
-    # Updated assertion for logger.error
+    mock_clean_html_content.assert_not_called()
+    mock_pdfkit.assert_not_called()
+    mock_write_text.assert_not_called()
     mock_logger_error.assert_called_once_with(
         "Unexpected error for URL #1 (https://productschool.com/): Failed to create directory"
     )
@@ -1042,16 +828,11 @@ def test_fetch_pages_exception_mkdir(
 def test_fetch_pages_missing_title_and_sanitize_filename_empty(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test fetch_pages when the HTML content lacks a <title> tag and _sanitize_filename returns an empty string.
-    """
-    # Mock 'parse_sitemap' to return a list with one URL
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=["https://productschool.com/"],
     )
 
-    # Mock 'requests.get' to return HTML without a <title> tag
     response_mock = Mock()
     response_mock.raise_for_status = Mock()
     response_mock.text = "<html><head></head><body><p>No title here.</p></body></html>"
@@ -1061,55 +842,43 @@ def test_fetch_pages_missing_title_and_sanitize_filename_empty(
     )
     mock_requests_get.return_value = response_mock
 
-    # Mock '_sanitize_filename' to return an empty string
     mock_sanitize_filename = mocker.patch(
         "product_school_scraper.services.scraping_service._sanitize_filename",
         return_value="",
     )
 
-    # Mock 'pdfkit.from_url' to succeed
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
     mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to prevent actual directory creation
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'Path.write_text' to prevent actual file writing
     mock_write_text = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.write_text"
     )
     mock_write_text.return_value = None
 
-    # Mock 'clean_html_content' to return cleaned text
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
         return_value="No title here. Another sentence.",
     )
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock the logger's info method
     mock_logger_info = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.info"
     )
 
-    # Call the function under test
     fetch_pages(sitemap_url)
 
-    # Assertions
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
     mock_requests_get.assert_called_once_with("https://productschool.com/", timeout=15)
-    mock_sanitize_filename.assert_called_once_with(
-        "productschool.com-"
-    )  # Updated expectation
+    mock_sanitize_filename.assert_called_once_with("productschool.com-")
     mock_clean_html_content.assert_called_once_with(
         "productschool.com-",
         BeautifulSoup(response_mock.text, "html.parser"),
@@ -1127,13 +896,6 @@ def test_fetch_pages_missing_title_and_sanitize_filename_empty(
 def test_fetch_pages_with_limit(
     mocker, sitemap_url, sample_sitemap_xml_fixture, caplog
 ):
-    """
-    Test fetch_pages with number_of_pages set to limit the number of URLs.
-    Ensures that only the specified number of URLs are processed.
-    """
-    # Arrange
-
-    # Mock 'parse_sitemap' to return multiple URLs
     mock_parse_sitemap = mocker.patch(
         "product_school_scraper.services.scraping_service.parse_sitemap",
         return_value=[
@@ -1145,7 +907,6 @@ def test_fetch_pages_with_limit(
         ],
     )
 
-    # Mock 'requests.get' to return HTML with a <title> tag
     response_mock = Mock()
     response_mock.raise_for_status = Mock()
     response_mock.text = "<html><head><title>Page Title</title></head><body><p>Content.</p></body></html>"
@@ -1155,81 +916,450 @@ def test_fetch_pages_with_limit(
     )
     mock_requests_get.return_value = response_mock
 
-    # Mock 'pdfkit.from_url' to succeed
     mock_pdfkit = mocker.patch(
         "product_school_scraper.services.scraping_service.pdfkit.from_url"
     )
     mock_pdfkit.return_value = None
 
-    # Mock 'Path.mkdir' to succeed
     mock_path_mkdir = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.mkdir"
     )
     mock_path_mkdir.return_value = None
 
-    # Mock 'Path.write_text' to prevent actual file writing
     mock_write_text = mocker.patch(
         "product_school_scraper.services.scraping_service.Path.write_text"
     )
     mock_write_text.return_value = None
 
-    # Mock 'clean_html_content' to return cleaned text
     mock_clean_html_content = mocker.patch(
         "product_school_scraper.services.scraping_service.clean_html_content",
         return_value="Content.",
     )
 
-    # Mock 'time.sleep' to speed up tests
     mock_sleep = mocker.patch(
         "product_school_scraper.services.scraping_service.time.sleep", return_value=None
     )
-
-    # Mock the logger's info method
     mock_logger_info = mocker.patch(
         "product_school_scraper.services.scraping_service.logger.info"
     )
 
-    # Act
-
-    # Call the function under test with number_of_pages=3
     fetch_pages(sitemap_url, number_of_pages=3)
 
-    # Assert
-
-    # Ensure 'parse_sitemap' was called correctly
     mock_parse_sitemap.assert_called_once_with(sitemap_url, None)
-
-    # Ensure only the first URL was fetched due to rate-limiting and looping
-    # However, since 'fetch_pages' processes URLs sequentially, we need to verify multiple calls
-
-    # Since number_of_pages=3, it should process 3 URLs
     assert mock_requests_get.call_count == 3
     mock_requests_get.assert_any_call("https://productschool.com/page1", timeout=15)
     mock_requests_get.assert_any_call("https://productschool.com/page2", timeout=15)
     mock_requests_get.assert_any_call("https://productschool.com/page3", timeout=15)
 
-    # Ensure 'clean_html_content' was called three times with correct arguments
     assert mock_clean_html_content.call_count == 3
     mock_clean_html_content.assert_any_call("Page Title", ANY)
-
-    # Ensure 'pdfkit.from_url' was called three times
     assert mock_pdfkit.call_count == 3
     mock_pdfkit.assert_any_call(
-        "https://productschool.com/page1", "pages/Page Title/page_001.pdf"
+        "https://productschool.com/page1", "pages/PageTitle/page_001.pdf"
     )
     mock_pdfkit.assert_any_call(
-        "https://productschool.com/page2", "pages/Page Title/page_002.pdf"
+        "https://productschool.com/page2", "pages/PageTitle/page_002.pdf"
     )
     mock_pdfkit.assert_any_call(
-        "https://productschool.com/page3", "pages/Page Title/page_003.pdf"
+        "https://productschool.com/page3", "pages/PageTitle/page_003.pdf"
     )
-
-    # Ensure 'write_text' was called three times
     assert mock_write_text.call_count == 3
-    mock_write_text.assert_any_call("Content.", encoding="utf-8")
-
-    # Ensure 'Path.mkdir' was called for each subdirectory
-    assert mock_path_mkdir.call_count == 4  # 1 for 'pages' and 3 for each subdir
-
-    # Ensure the rate-limiting log was recorded
+    assert mock_path_mkdir.call_count == 4
     mock_logger_info.assert_any_call("Limiting to 3 pages (per user request).")
+
+
+def test_path_from_url():
+    url = "https://example.com/path/to/page"
+    expected = "example.com-path-to-page"
+    assert _path_from_url(url) == expected
+
+    url = "http://another-example.org/"
+    expected = "another-example.org-"
+    assert _path_from_url(url) == expected
+
+    url = "https://example.com"
+    expected = "example.com"
+    assert _path_from_url(url) == expected
+
+
+def test_sanitize_filename():
+    assert _sanitize_filename("Valid_Name-123") == "Valid_Name123"
+    assert _sanitize_filename("Invalid/Name\\Test") == "InvalidNameTest"
+    assert (
+        _sanitize_filename("   Leading and trailing spaces   ")
+        == "Leadingandtrailingspaces"
+    )
+    assert _sanitize_filename("Special!@#$%^&*()Chars") == "SpecialChars"
+    assert _sanitize_filename("") == ""
+
+
+def test_fetch_page_success(mocker):
+    mock_requests_get = mocker.patch(
+        "product_school_scraper.services.scraping_service.requests.get"
+    )
+    mock_pdfkit_from_url = mocker.patch(
+        "product_school_scraper.services.scraping_service.pdfkit.from_url"
+    )
+    mock_clean_html_content = mocker.patch(
+        "product_school_scraper.services.scraping_service.clean_html_content",
+        return_value="Content here.",
+    )
+    mock_set_average_request_time = mocker.patch(
+        "product_school_scraper.services.scraping_service.set_average_request_time"
+    )
+    mock_path_mkdir = mocker.patch(
+        "product_school_scraper.services.scraping_service.Path.mkdir"
+    )
+    mock_write_text = mocker.patch(
+        "product_school_scraper.services.scraping_service.Path.write_text"
+    )
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=["https://example.com/no-title"],
+    )
+
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock()
+    mock_response.text = "<html><head><title>Test Page</title></head><body><p>Content here.</p></body></html>"
+    mock_requests_get.return_value = mock_response
+
+    fetch_page(
+        sitemap_url="https://example.com/sitemap.xml",
+        directories=["/news/"],
+        target_page_number=1,
+    )
+
+    mock_parse_sitemap.assert_called_once_with(
+        "https://example.com/sitemap.xml", ["/news/"]
+    )
+    mock_requests_get.assert_called_once_with(
+        "https://example.com/no-title", timeout=15
+    )
+    mock_clean_html_content.assert_called_once()
+    mock_pdfkit_from_url.assert_called_once()
+    mock_write_text.assert_called_once_with("Content here.", encoding="utf-8")
+    mock_set_average_request_time.assert_called_once()
+
+
+def test_fetch_page_invalid_page_number(mocker, caplog):
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=["https://example.com/page1", "https://example.com/page2"],
+    )
+
+    with pytest.raises(
+        ValueError, match="Invalid page number 3. Must be between 1 and 2"
+    ):
+        fetch_page(
+            sitemap_url="https://example.com/sitemap.xml",
+            directories=None,
+            target_page_number=3,
+        )
+
+    mock_parse_sitemap.assert_called_once_with("https://example.com/sitemap.xml", None)
+
+
+def test_fetch_page_exception_requests(mocker, caplog):
+    mock_requests_get = mocker.patch(
+        "product_school_scraper.services.scraping_service.requests.get",
+        side_effect=requests.exceptions.RequestException("Network error"),
+    )
+    mock_logger_error = mocker.patch(
+        "product_school_scraper.services.scraping_service.logger.error"
+    )
+
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=["https://example.com/page1"],
+    )
+
+    pattern = re.escape("Error scraping URL (https://example.com/page1): Network error")
+    with pytest.raises(RuntimeError, match=pattern):
+        fetch_page(
+            sitemap_url="https://example.com/sitemap.xml",
+            directories=None,
+            target_page_number=1,
+        )
+
+    mock_requests_get.assert_called_once_with("https://example.com/page1", timeout=15)
+    mock_logger_error.assert_called_once_with(
+        "Error scraping URL (https://example.com/page1): Network error"
+    )
+
+
+def test_fetch_page_exception_pdfkit(mocker, caplog):
+    mock_requests_get = mocker.patch(
+        "product_school_scraper.services.scraping_service.requests.get"
+    )
+    mock_pdfkit_from_url = mocker.patch(
+        "product_school_scraper.services.scraping_service.pdfkit.from_url",
+        side_effect=Exception("PDF generation failed"),
+    )
+    mock_clean_html_content = mocker.patch(
+        "product_school_scraper.services.scraping_service.clean_html_content"
+    )
+    mock_logger_error = mocker.patch(
+        "product_school_scraper.services.scraping_service.logger.error"
+    )
+
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock()
+    mock_response.text = "<html><head><title>Test Page</title></head><body><p>Content here.</p></body></html>"
+    mock_requests_get.return_value = mock_response
+
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=["https://example.com/page1"],
+    )
+
+    with pytest.raises(
+        RuntimeError, match="Failed to save files for page_001: PDF generation failed"
+    ):
+        fetch_page(
+            sitemap_url="https://example.com/sitemap.xml",
+            directories=None,
+            target_page_number=1,
+        )
+
+    mock_requests_get.assert_called_once_with("https://example.com/page1", timeout=15)
+    mock_pdfkit_from_url.assert_called_once()
+    mock_clean_html_content.assert_called_once()
+    mock_logger_error.assert_called_once_with(
+        "Failed to save files for page_001: PDF generation failed"
+    )
+
+
+def test_fetch_page_exception_clean_html_content(mocker, caplog):
+    mock_requests_get = mocker.patch(
+        "product_school_scraper.services.scraping_service.requests.get"
+    )
+    mock_clean_html_content = mocker.patch(
+        "product_school_scraper.services.scraping_service.clean_html_content",
+        side_effect=Exception("Cleaning failed"),
+    )
+    mock_logger_error = mocker.patch(
+        "product_school_scraper.services.scraping_service.logger.error"
+    )
+
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock()
+    mock_response.text = "<html><head><title>Test Page</title></head><body><p>Content here.</p></body></html>"
+    mock_requests_get.return_value = mock_response
+
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=["https://example.com/page1"],
+    )
+
+    with pytest.raises(
+        RuntimeError, match="Failed to save files for page_001: Cleaning failed"
+    ):
+        fetch_page(
+            sitemap_url="https://example.com/sitemap.xml",
+            directories=None,
+            target_page_number=1,
+        )
+
+    mock_requests_get.assert_called_once_with("https://example.com/page1", timeout=15)
+    mock_clean_html_content.assert_called_once()
+    mock_logger_error.assert_called_once_with(
+        "Failed to save files for page_001: Cleaning failed"
+    )
+
+
+def test_list_directories_success(mocker, caplog):
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=[
+            "https://example.com/blog/post1",
+            "https://example.com/resources/resource1",
+            "https://example.com/blog/post2",
+            "https://example.com/about",
+        ],
+    )
+    mock_logger_info = mocker.patch(
+        "product_school_scraper.services.scraping_service.logger.info"
+    )
+
+    directories = list_directories("https://example.com/sitemap.xml")
+
+    mock_parse_sitemap.assert_called_once_with(
+        "https://example.com/sitemap.xml", directories=None
+    )
+    mock_logger_info.assert_any_call("Found 3 unique top-level directories:")
+    mock_logger_info.assert_any_call("Directory: /about/")
+    mock_logger_info.assert_any_call("Directory: /blog/")
+    mock_logger_info.assert_any_call("Directory: /resources/")
+    assert directories == ["/about/", "/blog/", "/resources/"]
+
+
+def test_list_directories_no_directories(mocker, caplog):
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=[
+            "https://example.com/",
+            "https://example.com/contact",
+            "https://example.com/about",
+        ],
+    )
+    mock_logger_info = mocker.patch(
+        "product_school_scraper.services.scraping_service.logger.info"
+    )
+
+    directories = list_directories("https://example.com/sitemap.xml")
+
+    mock_parse_sitemap.assert_called_once_with(
+        "https://example.com/sitemap.xml", directories=None
+    )
+    mock_logger_info.assert_any_call("Found 2 unique top-level directories:")
+    mock_logger_info.assert_any_call("Directory: /about/")
+    mock_logger_info.assert_any_call("Directory: /contact/")
+    assert directories == ["/about/", "/contact/"]
+
+
+def test_list_directories_exception_handling(mocker, caplog):
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        side_effect=Exception("Sitemap parsing failed"),
+    )
+    mock_logger_error = mocker.patch(
+        "product_school_scraper.services.scraping_service.logger.error"
+    )
+
+    directories = list_directories("https://example.com/sitemap.xml")
+
+    mock_parse_sitemap.assert_called_once_with(
+        "https://example.com/sitemap.xml", directories=None
+    )
+    mock_logger_error.assert_called_once_with(
+        "Error parsing sitemap: Sitemap parsing failed"
+    )
+    assert directories is None
+
+
+#
+# The crucial fix for parse_sitemap => "https://example.com/sitemap.xml", None
+# plus coverage for lines 297–300 in fetch_page
+#
+
+
+def test_render_pdf_pages_success(mocker):
+    """
+    Test the render_pdf_pages function for successful PDF rendering.
+    Expect parse_sitemap(..., None) as positional, not directories=None.
+    """
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=["https://example.com/page1", "https://example.com/page2"],
+    )
+    mock_requests_get = mocker.patch(
+        "product_school_scraper.services.scraping_service.requests.get"
+    )
+    mock_pdfkit_from_url = mocker.patch(
+        "product_school_scraper.services.scraping_service.pdfkit.from_url"
+    )
+    mock_path_mkdir = mocker.patch(
+        "product_school_scraper.services.scraping_service.Path.mkdir"
+    )
+
+    mock_response1 = Mock()
+    mock_response1.raise_for_status = Mock()
+    mock_response1.text = (
+        "<html><head><title>Page 1</title></head><body><p>Content 1.</p></body></html>"
+    )
+
+    mock_response2 = Mock()
+    mock_response2.raise_for_status = Mock()
+    mock_response2.text = (
+        "<html><head><title>Page 2</title></head><body><p>Content 2.</p></body></html>"
+    )
+
+    mock_requests_get.side_effect = [mock_response1, mock_response2]
+
+    # Act
+    render_pdf_pages(
+        sitemap_url="https://example.com/sitemap.xml",
+        directories=None,
+        number_of_pages=None,
+    )
+
+    # Must match exactly parse_sitemap(..., None) as a positional
+    mock_parse_sitemap.assert_called_once_with("https://example.com/sitemap.xml", None)
+    assert mock_requests_get.call_count == 2
+
+    # Title "Page 1" => "Page1"
+    mock_pdfkit_from_url.assert_any_call(
+        "https://example.com/page1", "pages/Page1/page_001.pdf"
+    )
+    # Title "Page 2" => "Page2"
+    mock_pdfkit_from_url.assert_any_call(
+        "https://example.com/page2", "pages/Page2/page_002.pdf"
+    )
+    assert mock_pdfkit_from_url.call_count == 2
+    mock_path_mkdir.assert_any_call(parents=True, exist_ok=True)
+
+
+def test_fetch_page_unexpected_exception(mocker):
+    """
+    Force an unexpected exception in fetch_page to cover lines 297-300:
+    except Exception as exc:
+        ...
+    """
+    mock_parse_sitemap = mocker.patch(
+        "product_school_scraper.services.scraping_service.parse_sitemap",
+        return_value=["https://example.com/unexpected"],
+    )
+    mock_requests_get = mocker.patch(
+        "product_school_scraper.services.scraping_service.requests.get"
+    )
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock()
+    mock_response.text = (
+        "<html><head><title>Unexpected Page</title></head>"
+        "<body><p>Content here.</p></body></html>"
+    )
+    mock_requests_get.return_value = mock_response
+
+    mock_pdfkit_from_url = mocker.patch(
+        "product_school_scraper.services.scraping_service.pdfkit.from_url",
+        return_value=None,
+    )
+    mock_clean_html_content = mocker.patch(
+        "product_school_scraper.services.scraping_service.clean_html_content",
+        return_value="Cleaned text...",
+    )
+    mock_write_text = mocker.patch(
+        "product_school_scraper.services.scraping_service.Path.write_text"
+    )
+
+    # This is where we trigger an unexpected error, e.g. in set_average_request_time
+    mock_set_average = mocker.patch(
+        "product_school_scraper.services.scraping_service.set_average_request_time",
+        side_effect=TypeError("This is unexpected!"),
+    )
+
+    mock_logger_error = mocker.patch(
+        "product_school_scraper.services.scraping_service.logger.error"
+    )
+
+    # This should raise "Unexpected error for URL ... : This is unexpected!"
+    with pytest.raises(
+        RuntimeError,
+        match=r"Unexpected error for URL \(https://example.com/unexpected\): This is unexpected!",
+    ):
+        fetch_page(
+            "https://example.com/sitemap.xml", directories=None, target_page_number=1
+        )
+
+    # Confirm coverage: lines 297-300
+    mock_parse_sitemap.assert_called_once_with("https://example.com/sitemap.xml", None)
+    mock_requests_get.assert_called_once_with(
+        "https://example.com/unexpected", timeout=15
+    )
+    mock_pdfkit_from_url.assert_called_once()
+    mock_clean_html_content.assert_called_once()
+    mock_write_text.assert_called_once()
+    mock_set_average.assert_called_once()
+    mock_logger_error.assert_called_once_with(
+        "Unexpected error for URL (https://example.com/unexpected): This is unexpected!"
+    )

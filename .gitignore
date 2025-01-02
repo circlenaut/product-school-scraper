@@ -159,3 +159,7 @@ data.db
 # Ignore all files in the 'pages' directory except .gitkeep
 pages/*
 !pages/.gitkeep
+
+# Ignore all files in the 'result' directory except .gitkeep
+result/*
+!result/.gitkeep

@@ -1,6 +1,8 @@
 import logging
 
-from product_school_scraper.cli import DatabaseCLI, ScraperCLI
+import pytest
+
+from product_school_scraper.cli import CleaningCLI, DatabaseCLI, ScraperCLI
 
 
 def test_scraper_cli_verify(mocker, caplog):
@@ -137,6 +139,118 @@ def test_database_cli_delete_url(mocker, caplog):
 
     # Assert that 'delete_url' was called once with the correct arguments
     mock_delete_url.assert_called_once_with(1)
+
+
+def test_scraper_cli_list_directories(mocker, caplog):
+    """
+    Test the ScraperCLI.list_directories method.
+    """
+    # Patch 'list_directories' where it's imported in cli.py
+    mock_list_directories = mocker.patch("product_school_scraper.cli.list_directories")
+
+    scraper_cli = ScraperCLI()
+    scraper_cli.list_directories(sitemap_url="https://example.com/sitemap.xml")
+
+    # Assert that 'list_directories' was called once with the correct argument
+    mock_list_directories.assert_called_once_with("https://example.com/sitemap.xml")
+
+
+def test_scraper_cli_fetch_page(mocker, caplog):
+    """
+    Test the ScraperCLI.fetch_page method.
+    """
+    # Patch 'fetch_page' where it's imported in cli.py
+    mock_fetch_page = mocker.patch("product_school_scraper.cli.fetch_page")
+
+    scraper_cli = ScraperCLI()
+    scraper_cli.fetch_page(
+        page_index=5,
+        sitemap_url="https://example.com/sitemap.xml",
+        directory="/news/",
+    )
+
+    # Assert that 'fetch_page' was called once with the correct arguments
+    mock_fetch_page.assert_called_once_with(
+        "https://example.com/sitemap.xml", ["/news/"], 5
+    )
+
+
+def test_cleaning_cli_rename_files(mocker, caplog):
+    """
+    Test the CleaningCLI.rename_files method.
+    """
+    # Patch 'rename_and_organize_files' where it's imported in cli.py
+    mock_rename_and_organize_files = mocker.patch(
+        "product_school_scraper.cli.rename_and_organize_files"
+    )
+
+    cleaning_cli = CleaningCLI()
+    cleaning_cli.rename_files(pages_dir="source_pages", output_dir="organized_pages")
+
+    # Assert that 'rename_and_organize_files' was called once with the correct arguments
+    mock_rename_and_organize_files.assert_called_once_with(
+        "source_pages", "organized_pages"
+    )
+
+
+def test_cleaning_cli_merge_files(mocker, caplog):
+    """
+    Test the CleaningCLI.merge_files method.
+    """
+    # Patch 'merge_text_files' where it's imported in cli.py
+    mock_merge_text_files = mocker.patch("product_school_scraper.cli.merge_text_files")
+
+    cleaning_cli = CleaningCLI()
+    cleaning_cli.merge_files(pages_dir="source_pages", output_filename="combined.txt")
+
+    # Assert that 'merge_text_files' was called once with the correct arguments
+    mock_merge_text_files.assert_called_once_with("source_pages", "combined.txt")
+
+
+def test_scraper_cli_fetch_page_invalid_page_number(mocker, caplog):
+    """
+    Test the ScraperCLI.fetch_page method with an invalid page number.
+    """
+    # Patch 'fetch_page' to raise a ValueError
+    mock_fetch_page = mocker.patch(
+        "product_school_scraper.cli.fetch_page",
+        side_effect=ValueError("Invalid page number"),
+    )
+
+    scraper_cli = ScraperCLI()
+
+    with pytest.raises(ValueError, match="Invalid page number"):
+        scraper_cli.fetch_page(
+            page_index=999,  # Assuming this is out of range
+            sitemap_url="https://example.com/sitemap.xml",
+            directory="/news/",
+        )
+
+    # Assert that 'fetch_page' was called once with the correct arguments
+    mock_fetch_page.assert_called_once_with(
+        "https://example.com/sitemap.xml", ["/news/"], 999
+    )
+
+
+def test_cleaning_cli_merge_files_exception(mocker, caplog):
+    """
+    Test the CleaningCLI.merge_files method when an exception occurs.
+    """
+    # Patch 'merge_text_files' to raise an exception
+    mock_merge_text_files = mocker.patch(
+        "product_school_scraper.cli.merge_text_files",
+        side_effect=Exception("Merge failed"),
+    )
+
+    cleaning_cli = CleaningCLI()
+
+    with pytest.raises(Exception, match="Merge failed"):
+        cleaning_cli.merge_files(
+            pages_dir="source_pages", output_filename="combined.txt"
+        )
+
+    # Assert that 'merge_text_files' was called once with the correct arguments
+    mock_merge_text_files.assert_called_once_with("source_pages", "combined.txt")
 
 
 def test_root_cli_initialization(mocker, caplog):

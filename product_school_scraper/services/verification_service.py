@@ -29,10 +29,12 @@ def verify_pages(pages_dir: str = "pages"):
     total_pdf_count = 0
     total_txt_count = 0
 
+    mismatched_dirs = []  # To track directories with mismatched counts
+    missing_txt_dirs = []  # To track directories missing TXT files
+
     # Walk through each subdirectory in 'pages'
     for item in pages_path.iterdir():
         if item.is_dir():
-            # Each subdirectory corresponds to a single page or group of pages
             total_dirs_checked += 1
             logger.debug(f"Checking directory: {item.name}")
 
@@ -40,6 +42,7 @@ def verify_pages(pages_dir: str = "pages"):
             pdf_files = list(item.glob("*.pdf"))
             txt_files = list(item.glob("*.txt"))
 
+            # Count PDFs and validate them
             for pdf_file in pdf_files:
                 total_pdf_count += 1
                 if not _is_valid_pdf(pdf_file):
@@ -48,6 +51,7 @@ def verify_pages(pages_dir: str = "pages"):
                 else:
                     logger.debug(f"Valid PDF: {pdf_file}")
 
+            # Count TXTs and check for content
             for txt_file in txt_files:
                 total_txt_count += 1
                 if not _has_content(txt_file):
@@ -55,6 +59,20 @@ def verify_pages(pages_dir: str = "pages"):
                     empty_text_count += 1
                 else:
                     logger.debug(f"Non-empty text file: {txt_file}")
+
+            # Check for mismatches or missing files
+            if not txt_files:
+                missing_txt_dirs.append(item.name)
+            if len(pdf_files) != len(txt_files):
+                mismatched_dirs.append(item.name)
+
+    # Log summary of mismatched directories
+    if missing_txt_dirs:
+        logger.warning(f"Directories missing TXT files: {missing_txt_dirs}")
+    if mismatched_dirs:
+        logger.warning(
+            f"Directories with mismatched PDF and TXT counts: {mismatched_dirs}"
+        )
 
     # Summary logs
     logger.info("Verification summary:")
